@@ -1,0 +1,10 @@
+{
+	"manifest_version": 1,
+	"id": "com.shantanugoel.JoplinCMLineNumbersPlugin",
+	"app_min_version": "1.4",
+	"version": "1.0.0",
+	"name": "CodeMirror Line Numbers",
+	"description": "Enables line numbers for CodeMirror editor",
+	"author": "Shantanu Goel",
+	"homepage_url": "https://shantanugoel.com"
+}
