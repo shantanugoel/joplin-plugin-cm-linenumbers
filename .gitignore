@@ -1,3 +1,7 @@
 dist/
 node_modules/
 publish/
+
+# vim
+*.swp
+*.vim
