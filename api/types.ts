@@ -27,11 +27,12 @@ export interface Command {
 	execute(...args: any[]): Promise<any | void>;
 
 	/**
-	 * Defines whether the command should be enabled or disabled, which in turns affects
-	 * the enabled state of any associated button or menu item.
+	 * Defines whether the command should be enabled or disabled, which in turns
+	 * affects the enabled state of any associated button or menu item.
 	 *
-	 * The condition should be expressed as a "when-clause" (as in Visual Studio Code). It's a simple boolean expression that evaluates to
-	 * `true` or `false`. It supports the following operators:
+	 * The condition should be expressed as a "when-clause" (as in Visual Studio
+	 * Code). It's a simple boolean expression that evaluates to `true` or
+	 * `false`. It supports the following operators:
 	 *
 	 * Operator | Symbol | Example
 	 * -- | -- | --
@@ -40,7 +41,15 @@ export interface Command {
 	 * Or | \|\| | "noteIsTodo \|\| noteTodoCompleted"
 	 * And | && | "oneNoteSelected && !inConflictFolder"
 	 *
-	 * Currently the supported context variables aren't documented, but you can [find the list here](https://github.com/laurent22/joplin/blob/dev/packages/app-mobile/lib/services/commands/stateToWhenClauseContext.ts).
+	 * Joplin, unlike VSCode, also supports parenthesis, which allows creating
+	 * more complex expressions such as `cond1 || (cond2 && cond3)`. Only one
+	 * level of parenthesis is possible (nested ones aren't supported).
+	 *
+	 * Currently the supported context variables aren't documented, but you can
+	 * find the list below:
+	 *
+	 * - [Global When Clauses](https://github.com/laurent22/joplin/blob/dev/packages/lib/services/commands/stateToWhenClauseContext.ts)
+	 * - [Desktop app When Clauses](https://github.com/laurent22/joplin/blob/dev/packages/app-desktop/services/commands/stateToWhenClauseContext.ts)
 	 *
 	 * Note: Commands are enabled by default unless you use this property.
 	 */
@@ -189,6 +198,10 @@ export interface Script {
 	onStart?(event: any): Promise<void>;
 }
 
+export interface Disposable {
+	// dispose():void;
+}
+
 // =================================================================
 // Menu types
 // =================================================================
@@ -204,12 +217,49 @@ export enum MenuItemLocation {
 	Note = 'note',
 	Tools = 'tools',
 	Help = 'help',
+
 	/**
 	 * @deprecated Do not use - same as NoteListContextMenu
 	 */
 	Context = 'context',
+
+	// If adding an item here, don't forget to update isContextMenuItemLocation()
+
+	/**
+	 * When a command is called from the note list context menu, the
+	 * command will receive the following arguments:
+	 *
+	 * - `noteIds:string[]`: IDs of the notes that were right-clicked on.
+	 */
 	NoteListContextMenu = 'noteListContextMenu',
+
 	EditorContextMenu = 'editorContextMenu',
+
+	/**
+	 * When a command is called from a folder context menu, the
+	 * command will receive the following arguments:
+	 *
+	 * - `folderId:string`: ID of the folder that was right-clicked on
+	 */
+	FolderContextMenu = 'folderContextMenu',
+
+	/**
+	 * When a command is called from a tag context menu, the
+	 * command will receive the following arguments:
+	 *
+	 * - `tagId:string`: ID of the tag that was right-clicked on
+	 */
+	TagContextMenu = 'tagContextMenu',
+}
+
+export function isContextMenuItemLocation(location: MenuItemLocation): boolean {
+	return [
+		MenuItemLocation.Context,
+		MenuItemLocation.NoteListContextMenu,
+		MenuItemLocation.EditorContextMenu,
+		MenuItemLocation.FolderContextMenu,
+		MenuItemLocation.TagContextMenu,
+	].includes(location);
 }
 
 export interface MenuItem {
@@ -284,24 +334,81 @@ export enum SettingItemType {
 	Button = 6,
 }
 
+export enum AppType {
+	Desktop = 'desktop',
+	Mobile = 'mobile',
+	Cli = 'cli',
+}
+
+export enum SettingStorage {
+	Database = 1,
+	File = 2,
+}
+
 // Redefine a simplified interface to mask internal details
 // and to remove function calls as they would have to be async.
 export interface SettingItem {
 	value: any;
 	type: SettingItemType;
-	public: boolean;
-	label: string;
 
+	label: string;
 	description?: string;
-	isEnum?: boolean;
+
+	/**
+	 * A public setting will appear in the Configuration screen and will be
+	 * modifiable by the user. A private setting however will not appear there,
+	 * and can only be changed programmatically. You may use this to store some
+	 * values that you do not want to directly expose.
+	 */
+	public: boolean;
+
+	/**
+	 * You would usually set this to a section you would have created
+	 * specifically for the plugin.
+	 */
 	section?: string;
-	options?: any;
-	appTypes?: string[];
+
+	/**
+	 * To create a setting with multiple options, set this property to `true`.
+	 * That setting will render as a dropdown list in the configuration screen.
+	 */
+	isEnum?: boolean;
+
+	/**
+	 * This property is required when `isEnum` is `true`. In which case, it
+	 * should contain a map of value => label.
+	 */
+	options?: Record<any, any>;
+
+	/**
+	 * Reserved property. Not used at the moment.
+	 */
+	appTypes?: AppType[];
+
+	/**
+	 * Set this to `true` to store secure data, such as passwords. Any such
+	 * setting will be stored in the system keychain if one is available.
+	 */
 	secure?: boolean;
+
+	/**
+	 * An advanced setting will be moved under the "Advanced" button in the
+	 * config screen.
+	 */
 	advanced?: boolean;
+
+	/**
+	 * Set the min, max and step values if you want to restrict an int setting
+	 * to a particular range.
+	 */
 	minimum?: number;
 	maximum?: number;
 	step?: number;
+
+	/**
+	 * Either store the setting in the database or in settings.json. Defaults to database.
+	 */
+	storage?: SettingStorage;
 }
 
 export interface SettingSection {
@@ -318,19 +425,42 @@ export interface SettingSection {
 /**
  * An array of at least one element and at most three elements.
  *
- * [0]: Resource name (eg. "notes", "folders", "tags", etc.)
- * [1]: (Optional) Resource ID.
- * [2]: (Optional) Resource link.
+ * - **[0]**: Resource name (eg. "notes", "folders", "tags", etc.)
+ * - **[1]**: (Optional) Resource ID.
+ * - **[2]**: (Optional) Resource link.
  */
 export type Path = string[];
 
 // =================================================================
-// Plugins type
+// Content Script types
 // =================================================================
+
+export type PostMessageHandler = (message: any)=> Promise<any>;
+
+/**
+ * When a content script is initialised, it receives a `context` object.
+ */
+export interface ContentScriptContext {
+	/**
+	 * The plugin ID that registered this content script
+	 */
+	pluginId: string;
+
+	/**
+	 * The content script ID, which may be necessary to post messages
+	 */
+	contentScriptId: string;
+
+	/**
+	 * Can be used by CodeMirror content scripts to post a message to the plugin
+	 */
+	postMessage: PostMessageHandler;
+}
 
 export enum ContentScriptType {
 	/**
-	 * Registers a new Markdown-It plugin, which should follow the template below.
+	 * Registers a new Markdown-It plugin, which should follow the template
+	 * below.
 	 *
 	 * ```javascript
 	 * module.exports = {
@@ -346,14 +476,62 @@ export enum ContentScriptType {
 	 *     }
 	 * }
 	 * ```
+	 * See [the
+	 * demo](https://github.com/laurent22/joplin/tree/dev/packages/app-cli/tests/support/plugins/content_script)
+	 * for a simple Markdown-it plugin example.
 	 *
-	 * - The `context` argument is currently unused but could be used later on to provide access to your own plugin so that the content script and plugin can communicate.
+	 * ## Exported members
 	 *
-	 * - The **required** `plugin` key is the actual Markdown-It plugin - check the [official doc](https://github.com/markdown-it/markdown-it) for more information. The `options` parameter is of type [RuleOptions](https://github.com/laurent22/joplin/blob/dev/packages/app-mobile/lib/joplin-renderer/MdToHtml.ts), which contains a number of options, mostly useful for Joplin's internal code.
+	 * - The `context` argument is currently unused but could be used later on
+	 *   to provide access to your own plugin so that the content script and
+	 *   plugin can communicate.
 	 *
-	 * - Using the **optional** `assets` key you may specify assets such as JS or CSS that should be loaded in the rendered HTML document. Check for example the Joplin [Mermaid plugin](https://github.com/laurent22/joplin/blob/dev/packages/app-mobile/lib/joplin-renderer/MdToHtml/rules/mermaid.ts) to see how the data should be structured.
+	 * - The **required** `plugin` key is the actual Markdown-It plugin - check
+	 *   the [official doc](https://github.com/markdown-it/markdown-it) for more
+	 *   information. The `options` parameter is of type
+	 *   [RuleOptions](https://github.com/laurent22/joplin/blob/dev/packages/renderer/MdToHtml.ts),
+	 *   which contains a number of options, mostly useful for Joplin's internal
+	 *   code.
 	 *
-	 * To include a regular Markdown-It plugin, that doesn't make use of any Joplin-specific features, you would simply create a file such as this:
+	 * - Using the **optional** `assets` key you may specify assets such as JS
+	 *   or CSS that should be loaded in the rendered HTML document. Check for
+	 *   example the Joplin [Mermaid
+	 *   plugin](https://github.com/laurent22/joplin/blob/dev/packages/renderer/MdToHtml/rules/mermaid.ts)
+	 *   to see how the data should be structured.
+	 *
+	 * ## Posting messages from the content script to your plugin
+	 *
+	 * The application provides the following function to allow executing
+	 * commands from the rendered HTML code:
+	 *
+	 * ```javascript
+	 * const response = await webviewApi.postMessage(contentScriptId, message);
+	 * ```
+	 *
+	 * - `contentScriptId` is the ID you've defined when you registered the
+	 *   content script. You can retrieve it from the
+	 *   {@link ContentScriptContext | context}.
+	 * - `message` can be any basic JavaScript type (number, string, plain
+	 *   object), but it cannot be a function or class instance.
+	 *
+	 * When you post a message, the plugin can send back a `response` thus
+	 * allowing two-way communication:
+	 *
+	 * ```javascript
+	 * await joplin.contentScripts.onMessage(contentScriptId, (message) => {
+	 *     // Process message
+	 *     return response; // Can be any object, string or number
+	 * });
+	 * ```
+	 *
+	 * See {@link JoplinContentScripts.onMessage} for more details, as well as
+	 * the [postMessage
+	 * demo](https://github.com/laurent22/joplin/tree/dev/packages/app-cli/tests/support/plugins/post_messages).
+	 *
+	 * ## Registering an existing Markdown-it plugin
+	 *
+	 * To include a regular Markdown-It plugin, that doesn't make use of any
+	 * Joplin-specific features, you would simply create a file such as this:
 	 *
 	 * ```javascript
 	 * module.exports = {
@@ -366,8 +544,10 @@ export enum ContentScriptType {
 	 * ```
 	 */
 	MarkdownItPlugin = 'markdownItPlugin',
+
 	/**
-	 * Registers a new CodeMirror plugin, which should follow the template below.
+	 * Registers a new CodeMirror plugin, which should follow the template
+	 * below.
 	 *
 	 * ```javascript
 	 * module.exports = {
@@ -378,8 +558,8 @@ export enum ContentScriptType {
 	 *             },
 	 *             codeMirrorResources: [],
 	 *             codeMirrorOptions: {
-	 *									// ...
-	 *						 },
+	 *                                  // ...
+	 *                       },
 	 *             assets: {
 	 *                 // ...
 	 *             },
@@ -388,19 +568,65 @@ export enum ContentScriptType {
 	 * }
 	 * ```
 	 *
-	 * - The `context` argument is currently unused but could be used later on to provide access to your own plugin so that the content script and plugin can communicate.
+	 * - The `context` argument is currently unused but could be used later on
+	 *   to provide access to your own plugin so that the content script and
+	 *   plugin can communicate.
 	 *
-	 * - The `plugin` key is your CodeMirror plugin. This is where you can register new commands with CodeMirror or interact with the CodeMirror instance as needed.
+	 * - The `plugin` key is your CodeMirror plugin. This is where you can
+	 *   register new commands with CodeMirror or interact with the CodeMirror
+	 *   instance as needed.
 	 *
-	 * - The `codeMirrorResources` key is an array of CodeMirror resources that will be loaded and attached to the CodeMirror module. These are made up of addons, keymaps, and modes. For example, for a plugin that want's to enable clojure highlighting in code blocks. `codeMirrorResources` would be set to `['mode/clojure/clojure']`.
+	 * - The `codeMirrorResources` key is an array of CodeMirror resources that
+	 *   will be loaded and attached to the CodeMirror module. These are made up
+	 *   of addons, keymaps, and modes. For example, for a plugin that want's to
+	 *   enable clojure highlighting in code blocks. `codeMirrorResources` would
+	 *   be set to `['mode/clojure/clojure']`.
 	 *
-	 * - The `codeMirrorOptions` key contains all the [CodeMirror](https://codemirror.net/doc/manual.html#config) options that will be set or changed by this plugin. New options can alse be declared via [`CodeMirror.defineOption`](https://codemirror.net/doc/manual.html#defineOption), and then have their value set here. For example, a plugin that enables line numbers would set `codeMirrorOptions` to `{'lineNumbers': true}`.
+	 * - The `codeMirrorOptions` key contains all the
+	 *   [CodeMirror](https://codemirror.net/doc/manual.html#config) options
+	 *   that will be set or changed by this plugin. New options can alse be
+	 *   declared via
+	 *   [`CodeMirror.defineOption`](https://codemirror.net/doc/manual.html#defineOption),
+	 *   and then have their value set here. For example, a plugin that enables
+	 *   line numbers would set `codeMirrorOptions` to `{'lineNumbers': true}`.
 	 *
-	 * - Using the **optional** `assets` key you may specify **only** CSS assets that should be loaded in the rendered HTML document. Check for example the Joplin [Mermaid plugin](https://github.com/laurent22/joplin/blob/dev/packages/app-mobile/lib/joplin-renderer/MdToHtml/rules/mermaid.ts) to see how the data should be structured.
+	 * - Using the **optional** `assets` key you may specify **only** CSS assets
+	 *   that should be loaded in the rendered HTML document. Check for example
+	 *   the Joplin [Mermaid
+	 *   plugin](https://github.com/laurent22/joplin/blob/dev/packages/renderer/MdToHtml/rules/mermaid.ts)
+	 *   to see how the data should be structured.
 	 *
-	 * One of the `plugin`, `codeMirrorResources`, or `codeMirrorOptions` keys must be provided for the plugin to be valid. Having multiple or all provided is also okay.
+	 * One of the `plugin`, `codeMirrorResources`, or `codeMirrorOptions` keys
+	 * must be provided for the plugin to be valid. Having multiple or all
+	 * provided is also okay.
 	 *
-	 * See the [demo plugin](https://github.com/laurent22/joplin/tree/dev/packages/app-cli/tests/support/plugins/codemirror_content_script) for an example of all these keys being used in one plugin.
+	 * See also the [demo
+	 * plugin](https://github.com/laurent22/joplin/tree/dev/packages/app-cli/tests/support/plugins/codemirror_content_script)
+	 * for an example of all these keys being used in one plugin.
+	 *
+	 * ## Posting messages from the content script to your plugin
+	 *
+	 * In order to post messages to the plugin, you can use the postMessage
+	 * function passed to the {@link ContentScriptContext | context}.
+	 *
+	 * ```javascript
+	 * const response = await context.postMessage('messageFromCodeMirrorContentScript');
+	 * ```
+	 *
+	 * When you post a message, the plugin can send back a `response` thus
+	 * allowing two-way communication:
+	 *
+	 * ```javascript
+	 * await joplin.contentScripts.onMessage(contentScriptId, (message) => {
+	 *     // Process message
+	 *     return response; // Can be any object, string or number
+	 * });
+	 * ```
+	 *
+	 * See {@link JoplinContentScripts.onMessage} for more details, as well as
+	 * the [postMessage
+	 * demo](https://github.com/laurent22/joplin/tree/dev/packages/app-cli/tests/support/plugins/post_messages).
+	 *
 	 */
 	CodeMirrorPlugin = 'codeMirrorPlugin',
 }
