@@ -6,7 +6,7 @@
 	"name": "CodeMirror Line Numbers",
 	"description": "Enables line numbers for CodeMirror editor",
 	"author": "Shantanu Goel",
-	"homepage_url": "https://shantanugoel.com"
+	"homepage_url": "https://shantanugoel.com",
 	"repository_url": "https://github.com/shantanugoel/joplin-plugin-cm-linenumbers",
 	"keywords": []
 }
