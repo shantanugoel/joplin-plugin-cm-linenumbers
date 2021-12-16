@@ -2,7 +2,7 @@ import Plugin from '../Plugin';
 import { ButtonSpec, ViewHandle, DialogResult } from './types';
 /**
  * Allows creating and managing dialogs. A dialog is modal window that
- * contains a webview and a row of buttons. You can update the update the
+ * contains a webview and a row of buttons. You can update the
  * webview using the `setHtml` method. Dialogs are hidden by default and
  * you need to call `open()` to open them. Once the user clicks on a
  * button, the `open` call will return an object indicating what button was
@@ -48,6 +48,10 @@ export default class JoplinViewsDialogs {
      */
     setHtml(handle: ViewHandle, html: string): Promise<string>;
     /**
+     * Adds and loads a new JS or CSS files into the dialog.
+     */
+    addScript(handle: ViewHandle, scriptPath: string): Promise<void>;
+    /**
      * Sets the dialog buttons.
      */
     setButtons(handle: ViewHandle, buttons: ButtonSpec[]): Promise<ButtonSpec[]>;
@@ -55,4 +59,11 @@ export default class JoplinViewsDialogs {
      * Opens the dialog
      */
     open(handle: ViewHandle): Promise<DialogResult>;
+    /**
+     * Toggle on whether to fit the dialog size to the content or not.
+     * When set to false, the dialog stretches to fill the application
+     * window.
+     * @default true
+     */
+    setFitToContent(handle: ViewHandle, status: boolean): Promise<boolean>;
 }
