@@ -5,8 +5,8 @@ joplin.plugins.register({
 	onStart: async function() {
 		await joplin.contentScripts.register(
 			ContentScriptType.CodeMirrorPlugin,
-			'cmLineNumbers',
-			'./cmLineNumbers.js'
+			'cmRelLineNumbers',
+			'./cmRelLineNumbers.js'
 		);
 	},
 });
